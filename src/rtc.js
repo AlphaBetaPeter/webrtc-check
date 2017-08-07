@@ -1,27 +1,15 @@
-import DetectRTC from 'detectrtc';
+import browser from 'detect-browser';
 
 let rtcState = {
 	hasMicrophonePermission: null,
-	audioDevices: {},
-	DetectRTC: null
+	isWebRTCSupported: null,
 };
 
-const checkDetectRTC = (detectRtcCallback = () => {}) => {
-	DetectRTC.load(() => {
-		detectRtcCallback({
-			hasMicrophone: DetectRTC.hasMicrophone,
-			hasSpeakers: DetectRTC.hasSpeakers,
-			hasWebcam: DetectRTC.hasWebcam,
-			audioInputDevices: DetectRTC.audioInputDevices,
-			audioOutputDevices: DetectRTC.audioOutputDevices,
-			videoInputDevices: DetectRTC.videoInputDevices,
-			isWebRTCSupported: DetectRTC.isWebRTCSupported,
-			MediaDevices: DetectRTC.MediaDevices,
-			isWebsiteHasWebcamPermissions: DetectRTC.isWebsiteHasWebcamPermissions,
-			isWebsiteHasMicrophonePermissions: DetectRTC.isWebsiteHasMicrophonePermissions
-		})
-	});
-};
+const isFirefoxOrSafari = browser && (browser.name === 'firefox' || browser.name === 'safari');
+
+const isWebRTCSupported = () =>
+	['RTCPeerConnection', 'webkitRTCPeerConnection', 'mozRTCPeerConnection', 'RTCIceGatherer']
+		.filter(item => item in window).length > 0;
 
 const listAudioDevices = (devicesCallback = () => {}) => {
 	if (window.navigator.mediaDevices && !!window.navigator.mediaDevices.enumerateDevices) {
@@ -53,7 +41,8 @@ const listAudioDevices = (devicesCallback = () => {}) => {
 					allDevices : {
 						inputDevices,
 						outputDevices
-					}
+					},
+					hasAudioDevices: !!(inputDevices.length && (outputDevices.length || isFirefoxOrSafari))
 				});
 			})
 			.catch(e => {
@@ -75,17 +64,18 @@ const requestAudioPermission = (permissionCallback) => {
 
 
 export const checkWebRTC = (checkWebRTCCallback = () => {}) => {
-	requestAudioPermission((res) => {
-		rtcState.hasMicrophonePermission = res;
-		checkWebRTCCallback(rtcState);	
-		listAudioDevices((res) => {
-			rtcState.audioDevices = res;
+	requestAudioPermission((permissionRes) => {
+
+		rtcState.hasMicrophonePermission = permissionRes;
+		rtcState.isWebRTCSupported = isWebRTCSupported();
+
+		checkWebRTCCallback(rtcState);
+
+		listAudioDevices((devicesRes) => {
+			rtcState = { ...rtcState, ...devicesRes }
 			checkWebRTCCallback(rtcState);
-		})
-		checkDetectRTC((res) => {
-			rtcState.DetectRTC = res;
-			checkWebRTCCallback(rtcState);
-		})
+		});
+
 	});
 }
 
